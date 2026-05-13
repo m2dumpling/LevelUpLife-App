@@ -1,0 +1,88 @@
+﻿name: Build APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;35.0.0 platform-tools'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web
+        run: npm run build
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Prepare icon assets
+        run: npm run prepare:assets
+
+      - name: Generate Android icons
+        run: npx capacitor-assets generate --android
+
+      - name: Sync Android project
+        run: npx cap sync android
+
+      - name: Configure Android native project
+        run: npm run android:configure
+
+      - name: Build APK
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Rename APK
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LevelUpLife.apk
+
+      - name: Upload APK (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: levelup-life-debug
+          path: android/app/build/outputs/apk/debug/LevelUpLife.apk
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: android/app/build/outputs/apk/debug/LevelUpLife.apk
+          name: LevelUp Life ${{ github.ref_name }}
+          body: |
+            ## Install and Go
+
+            1. Download `LevelUpLife.apk`, install it, and open the app.
+            2. Create a Habit or Plan with a reminder time.
+            3. Reminder notifications are scheduled locally on the device.
+
+            ## Battery Optimization
+            - **Xiaomi**: Settings > Apps > LevelUp Life > Battery saver > No restrictions
+            - **OPPO**: Settings > App management > LevelUp Life > Power saver > Allow background
+            - **vivo**: Settings > Apps and permissions > LevelUp Life > Background power > Allow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
