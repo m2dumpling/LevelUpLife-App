@@ -1,0 +1,10 @@
+node_modules/
+dist/
+android/
+.spec-workflow/
+.codex/
+.claude/
+*.keystore
+.env
+.DS_Store
+package-lock.json
