@@ -16,6 +16,7 @@
 
 :root,
 :root[data-theme="dark"] {
+  --color-background: #0a0a14;
   --app-safe-top: env(safe-area-inset-top, 0px);
   --app-native-safe-top: 0px;
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -34,7 +35,7 @@
 
 @media (prefers-color-scheme: light) {
   :root[data-theme="system"] {
-    --color-background: oklch(0.98 0.01 245);
+    --color-background: #f3f7ff;
     --color-foreground: oklch(0.18 0.02 250);
     --color-card: oklch(1 0 0);
     --color-card-foreground: oklch(0.18 0.02 250);
@@ -60,7 +61,7 @@
 }
 
 :root[data-theme="light"] {
-  --color-background: oklch(0.98 0.01 245);
+  --color-background: #f3f7ff;
   --color-foreground: oklch(0.18 0.02 250);
   --color-card: oklch(1 0 0);
   --color-card-foreground: oklch(0.18 0.02 250);

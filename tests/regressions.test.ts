@@ -29,9 +29,13 @@ Object.defineProperty(globalThis, "localStorage", {
 {
   const configureScript = fs.readFileSync("scripts/configure-android.mjs", "utf8");
   assert.match(configureScript, /super\.onCreate\(savedInstanceState\);\s*WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
+  assert.match(configureScript, /registerPlugin\(NativeUiPlugin\.class\)/);
+  assert.match(configureScript, /class NativeUiPlugin extends Plugin/);
   assert.doesNotMatch(configureScript, /setDecorFitsSystemWindows/);
   assert.match(configureScript, /implementation "androidx\.core:core:\$androidxCoreVersion"/);
   const nativeUi = fs.readFileSync("src/lib/native-ui.ts", "utf8");
+  assert.match(nativeUi, /registerPlugin<NativeUiPlugin>\("NativeUi"\)/);
+  assert.match(nativeUi, /setSystemBarsBackground/);
   assert.match(nativeUi, /--app-native-safe-top/);
   assert.match(nativeUi, /Math\.min\(info\.height,\s*36\)/);
   const css = fs.readFileSync("src/index.css", "utf8");
