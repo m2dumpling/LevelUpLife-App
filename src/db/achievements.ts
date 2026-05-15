@@ -1,9 +1,11 @@
-import { queryAll, execute } from "./connection";
+import { queryAll, queryOne, execute } from "./connection.ts";
 
 export async function getAll(): Promise<Record<string, unknown>[]> {
   return queryAll("SELECT * FROM achievement ORDER BY id");
 }
 
 export async function unlock(key: string): Promise<void> {
-  await execute("UPDATE achievement SET unlocked = 1, unlocked_at = ? WHERE key = ? AND unlocked = 0", [new Date().toISOString(), key]);
+  const existing = await queryOne<{ unlocked: number }>("SELECT * FROM achievement WHERE key = ?", [key]);
+  if (!existing || existing.unlocked) return;
+  await execute("UPDATE achievement SET unlocked = ?, unlocked_at = ? WHERE key = ?", [1, new Date().toISOString(), key]);
 }

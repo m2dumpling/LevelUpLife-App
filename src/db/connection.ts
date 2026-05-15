@@ -128,13 +128,13 @@ export async function execute(sql: string, _params: unknown[] = []): Promise<voi
     if (!table) return;
     let rows = loadTable(table);
     if (upper.includes("WHERE")) {
-      if (upper.includes("task_id")) {
+      if (upper.includes("TASK_ID")) {
         rows = rows.filter((r) => {
           const taskMatches = r["task_id"] === _params[0];
           const dateMatches = _params.length <= 1 || r["completed_at"] === _params[1];
           return !(taskMatches && dateMatches);
         });
-      } else if (upper.includes("id")) {
+      } else if (upper.includes("ID")) {
         rows = rows.filter((r) => r.id !== _params[0]);
       }
     } else {

@@ -29,6 +29,9 @@ const connection = await import("../src/db/connection.ts");
 const shop = await import("../src/db/shop.ts");
 const { tasksDB } = await import("../src/db/tasks.ts");
 const { userDB } = await import("../src/db/user.ts");
+const rewards = await import("../src/db/rewards.ts");
+const achievements = await import("../src/db/achievements.ts");
+const progression = await import("../src/db/progression.ts");
 const { addLog, getLogs } = await import("../src/db/logs.ts");
 const {
   buildTaskNotification,
@@ -65,6 +68,9 @@ function resetTables(gold = 20): void {
   saveTable("habit_log", []);
   saveTable("inventory", []);
   saveTable("activity_log", []);
+  saveTable("reward_ledger", []);
+  saveTable("achievement", []);
+  saveTable("story_event", []);
 }
 
 function taskFixture(overrides: Partial<Awaited<ReturnType<typeof tasksDB.create>>> = {}) {
@@ -340,6 +346,215 @@ function taskFixture(overrides: Partial<Awaited<ReturnType<typeof tasksDB.create
   const userAfterUndo = await userDB.get();
   await userDB.update({ gold: Math.max(0, userAfterUndo!.gold - undone!.goldReward) });
   assert.equal((await userDB.get())?.gold, 20);
+}
+
+{
+  resetTables(20);
+  const habit = await tasksDB.create({
+    title: "Read once",
+    mode: "habit",
+    difficulty: "easy",
+  });
+
+  const first = await tasksDB.complete(habit.id);
+  assert.equal(first?.completedNow, true);
+  const firstReward = await rewards.grantTaskReward(first!);
+  assert.equal(firstReward.awarded, true);
+
+  const second = await tasksDB.complete(habit.id);
+  assert.equal(second?.completedNow, false);
+  const secondReward = await rewards.grantTaskReward(second!);
+  assert.equal(secondReward.awarded, false);
+
+  const user = await userDB.get();
+  assert.equal(user?.xp, 10);
+  assert.equal(user?.gold, 23);
+  const ledger = await queryAll("SELECT * FROM reward_ledger");
+  assert.equal(ledger.length, 1);
+}
+
+{
+  resetTables(20);
+  saveTable("inventory", [{
+    id: 1,
+    item_key: "medal_copper",
+    quantity: 1,
+    equipped: 1,
+    created_at: "now",
+    updated_at: "now",
+  }]);
+
+  const plan = await tasksDB.create({
+    title: "Bonus plan",
+    mode: "plan",
+    targetDate: getTodayLocal(),
+    difficulty: "easy",
+  });
+  const completed = await tasksDB.complete(plan.id);
+  const reward = await rewards.grantTaskReward(completed!);
+  assert.equal(reward.xpEarned, 11);
+  assert.equal((await userDB.get())?.xp, 11);
+
+  const undone = await tasksDB.uncomplete(plan.id);
+  const reverted = await rewards.revertTaskReward(undone!);
+  assert.equal(reverted?.xpReverted, 11);
+  assert.equal((await userDB.get())?.xp, 0);
+  assert.equal((await userDB.get())?.gold, 20);
+}
+
+{
+  resetTables(20);
+  const plan = await tasksDB.create({
+    title: "Difficulty edit",
+    mode: "plan",
+    targetDate: getTodayLocal(),
+    difficulty: "easy",
+  });
+  const completed = await tasksDB.complete(plan.id);
+  await rewards.grantTaskReward(completed!);
+
+  const edited = await tasksDB.update(plan.id, { difficulty: "heroic" });
+  assert.equal(edited?.difficulty, "heroic");
+  assert.equal(edited?.xpReward, 10);
+  assert.equal(edited?.goldReward, 3);
+
+  const undone = await tasksDB.uncomplete(plan.id);
+  await rewards.revertTaskReward(undone!);
+  const user = await userDB.get();
+  assert.equal(user?.xp, 0);
+  assert.equal(user?.gold, 20);
+}
+
+{
+  resetTables(20);
+  const plan = await tasksDB.create({
+    title: "Delete completed",
+    mode: "plan",
+    targetDate: getTodayLocal(),
+  });
+  const completed = await tasksDB.complete(plan.id);
+  await rewards.grantTaskReward(completed!);
+  assert.equal((await userDB.get())?.gold, 23);
+
+  await rewards.revertTaskReward(completed!);
+  await tasksDB.remove(plan.id);
+  assert.equal((await userDB.get())?.gold, 20);
+  assert.equal((await tasksDB.getById(plan.id)), null);
+}
+
+{
+  resetTables(20);
+  await Promise.all([
+    shop.buyOre("ore_copper"),
+    shop.buyOre("ore_copper"),
+    shop.buyOre("ore_copper"),
+  ]);
+
+  const user = await userDB.get();
+  const inventory = await shop.getInventory();
+  assert.equal(user?.gold, 0);
+  assert.equal(inventory.ore_copper.quantity, 2);
+}
+
+{
+  resetTables(0);
+  saveTable("inventory", [{
+    id: 1,
+    item_key: "ore_copper",
+    quantity: 5,
+    equipped: 0,
+    created_at: "now",
+    updated_at: "now",
+  }]);
+
+  const [first, second] = await Promise.allSettled([
+    shop.craftMedal("medal_copper"),
+    shop.craftMedal("medal_copper"),
+  ]);
+  assert.equal(first.status, "fulfilled");
+  assert.equal(second.status, "rejected");
+  const inventory = await shop.getInventory();
+  assert.equal(inventory.ore_copper.quantity, 0);
+  assert.equal(inventory.medal_copper.quantity, 1);
+}
+
+{
+  resetTables(20);
+  saveTable("achievement", [{
+    id: 1,
+    key: "first_quest",
+    title: "First",
+    description: "First task",
+    icon: "*",
+    is_hidden: 0,
+    unlocked: 0,
+    unlocked_at: null,
+  }]);
+
+  await achievements.unlock("first_quest");
+  const row = await queryOne<{ unlocked: number; unlocked_at: string | null }>(
+    "SELECT * FROM achievement WHERE key = ?",
+    ["first_quest"],
+  );
+  assert.equal(row?.unlocked, 1);
+  assert.ok(row?.unlocked_at);
+}
+
+{
+  resetTables(20);
+  saveTable("achievement", [
+    { id: 1, key: "first_quest", title: "First", description: "", icon: "*", is_hidden: 0, unlocked: 0, unlocked_at: null },
+    { id: 2, key: "level_5", title: "Level 5", description: "", icon: "*", is_hidden: 0, unlocked: 0, unlocked_at: null },
+    { id: 3, key: "gold_100", title: "Gold 100", description: "", icon: "*", is_hidden: 0, unlocked: 0, unlocked_at: null },
+  ]);
+  await userDB.update({ level: 5 });
+  saveTable("reward_ledger", [{
+    id: 1,
+    task_id: 1,
+    completion_key: "1:plan",
+    mode: "plan",
+    task_title: "Done",
+    base_xp: 10,
+    base_gold: 3,
+    xp_earned: 10,
+    gold_earned: 100,
+    level_before: 4,
+    xp_before: 0,
+    xp_to_next_before: 800,
+    gold_before: 0,
+    level_after: 5,
+    xp_after: 0,
+    xp_to_next_after: 1000,
+    gold_after: 100,
+    completed_date: getTodayLocal(),
+    created_at: "now",
+    reversed_at: null,
+  }]);
+
+  const unlocked = await progression.evaluateProgression();
+  assert.deepEqual(new Set(unlocked), new Set(["first_quest", "level_5", "gold_100"]));
+}
+
+{
+  resetTables(20);
+  const user = await userDB.get();
+  await userDB.update({
+    hp: 50,
+    maxHp: 100,
+    lastLoginDate: getDaysFromTodayLocal(-2),
+    lastSettlementDate: null,
+  });
+  await tasksDB.create({
+    title: "Daily missed",
+    mode: "habit",
+    frequency: "daily",
+    startDate: getDaysFromTodayLocal(-3),
+  });
+
+  await userDB.dailySettle();
+  const settled = await userDB.get();
+  assert.equal(user?.hp, 100);
+  assert.equal(settled?.hp, 65);
 }
 
 {
