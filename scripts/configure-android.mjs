@@ -105,6 +105,7 @@ function configureAppBuildGradle() {
 
   let gradle = fs.readFileSync(appBuildGradlePath, "utf8");
   const coreDependency = 'implementation "androidx.core:core:$androidxCoreVersion"';
+  gradle = gradle.replace(/\s+implementation "androidx\.activity:activity:\$androidxActivityVersion"\s*\n/g, "\n");
   gradle = gradle.replace(/\s+implementation "androidx\.core:core:\$androidxCoreVersion"\s*\n/g, "\n");
 
   if (!gradle.includes(coreDependency.trim())) {
@@ -149,10 +150,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         WindowCompat.enableEdgeToEdge(getWindow());
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
-        super.onCreate(savedInstanceState);
     }
 }
 `);

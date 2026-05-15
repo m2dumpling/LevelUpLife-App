@@ -28,9 +28,15 @@ Object.defineProperty(globalThis, "localStorage", {
 
 {
   const configureScript = fs.readFileSync("scripts/configure-android.mjs", "utf8");
-  assert.match(configureScript, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
+  assert.match(configureScript, /super\.onCreate\(savedInstanceState\);\s*WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
   assert.doesNotMatch(configureScript, /setDecorFitsSystemWindows/);
   assert.match(configureScript, /implementation "androidx\.core:core:\$androidxCoreVersion"/);
+  const nativeUi = fs.readFileSync("src/lib/native-ui.ts", "utf8");
+  assert.match(nativeUi, /--app-native-safe-top/);
+  assert.match(nativeUi, /Math\.min\(info\.height,\s*36\)/);
+  const css = fs.readFileSync("src/index.css", "utf8");
+  assert.match(css, /--app-native-safe-top:\s*0px/);
+  assert.match(css, /height:\s*max\(env\(safe-area-inset-top,\s*0px\),\s*var\(--app-native-safe-top\)\)/);
 }
 
 const connection = await import("../src/db/connection.ts");

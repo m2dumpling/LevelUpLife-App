@@ -17,6 +17,7 @@
 :root,
 :root[data-theme="dark"] {
   --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-native-safe-top: 0px;
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   --xp-track: oklch(0.2 0.02 260);
   --xp-track-border: oklch(0.28 0.02 260);
@@ -114,7 +115,7 @@ body {
 }
 
 .app-status-spacer {
-  height: var(--app-safe-top);
+  height: max(env(safe-area-inset-top, 0px), var(--app-native-safe-top));
   flex-shrink: 0;
   background: var(--color-background);
 }
