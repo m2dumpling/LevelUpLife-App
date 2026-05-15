@@ -85,6 +85,10 @@
   --heatmap-4: oklch(0.45 0.2 142);
 }
 
+html {
+  font-size: 18px;
+}
+
 html,
 body,
 #root {
@@ -97,7 +101,20 @@ body {
   margin: 0;
   background: var(--color-background);
   color: var(--color-foreground);
+  font-size: 1rem;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+svg {
+  width: 1.2em;
+  height: 1.2em;
 }
 
 .app-shell {
