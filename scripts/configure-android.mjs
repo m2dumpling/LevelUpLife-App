@@ -8,6 +8,7 @@ const androidMain = path.join(root, "android", "app", "src", "main");
 const manifestPath = path.join(androidMain, "AndroidManifest.xml");
 const resDir = path.join(androidMain, "res");
 const javaDir = path.join(androidMain, "java", "com", "leveluplife", "app");
+const appBuildGradlePath = path.join(root, "android", "app", "build.gradle");
 
 function ensureFile(filePath, contents) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -97,6 +98,25 @@ function configureStyles() {
 `);
 }
 
+function configureAppBuildGradle() {
+  if (!fs.existsSync(appBuildGradlePath)) {
+    throw new Error(`app/build.gradle not found: ${appBuildGradlePath}`);
+  }
+
+  let gradle = fs.readFileSync(appBuildGradlePath, "utf8");
+  const coreDependency = 'implementation "androidx.core:core:$androidxCoreVersion"';
+  gradle = gradle.replace(/\s+implementation "androidx\.core:core:\$androidxCoreVersion"\s*\n/g, "\n");
+
+  if (!gradle.includes(coreDependency.trim())) {
+    gradle = gradle.replace(
+      /(\s+implementation "androidx\.appcompat:appcompat:\$androidxAppCompatVersion"\s*)/,
+      `$1    ${coreDependency}\n`,
+    );
+  }
+
+  fs.writeFileSync(appBuildGradlePath, gradle, "utf8");
+}
+
 function configureSmallIcon() {
   ensureFile(path.join(resDir, "drawable", "ic_stat_leveluplife.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -121,6 +141,7 @@ function configureSmallIcon() {
 function configureMainActivity() {
   ensureFile(path.join(javaDir, "MainActivity.java"), `package com.leveluplife.app;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import androidx.core.view.WindowCompat;
 import com.getcapacitor.BridgeActivity;
@@ -128,8 +149,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        WindowCompat.enableEdgeToEdge(getWindow());
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
         super.onCreate(savedInstanceState);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
     }
 }
 `);
@@ -137,6 +160,7 @@ public class MainActivity extends BridgeActivity {
 
 configureManifest();
 configureStyles();
+configureAppBuildGradle();
 configureSmallIcon();
 configureMainActivity();
 console.log("[Android] Manifest, styles, notification icon, and MainActivity configured.");

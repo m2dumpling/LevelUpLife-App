@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 class MemoryStorage {
   private store = new Map<string, string>();
@@ -24,6 +25,13 @@ Object.defineProperty(globalThis, "localStorage", {
   value: new MemoryStorage(),
   configurable: true,
 });
+
+{
+  const configureScript = fs.readFileSync("scripts/configure-android.mjs", "utf8");
+  assert.match(configureScript, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
+  assert.doesNotMatch(configureScript, /setDecorFitsSystemWindows/);
+  assert.match(configureScript, /implementation "androidx\.core:core:\$androidxCoreVersion"/);
+}
 
 const connection = await import("../src/db/connection.ts");
 const shop = await import("../src/db/shop.ts");
