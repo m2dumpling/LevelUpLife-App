@@ -1,7 +1,13 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { StatusBar, Style } from "@capacitor/status-bar";
 
 export type ThemeMode = "system" | "light" | "dark";
+
+interface NativeUiPlugin {
+  setSystemBarsBackground(options: { color: string; lightStatusBars: boolean }): Promise<void>;
+}
+
+const NativeUi = registerPlugin<NativeUiPlugin>("NativeUi");
 
 function isDarkTheme(themeMode: ThemeMode): boolean {
   if (themeMode === "dark") return true;
@@ -9,10 +15,24 @@ function isDarkTheme(themeMode: ThemeMode): boolean {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
 }
 
+function getThemeBackgroundColor(themeMode: ThemeMode): string {
+  return isDarkTheme(themeMode) ? "#0a0a14" : "#f3f7ff";
+}
+
 export async function syncStatusBar(themeMode: ThemeMode): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
 
   const dark = isDarkTheme(themeMode);
+  const backgroundColor = getThemeBackgroundColor(themeMode);
+
+  try {
+    await NativeUi.setSystemBarsBackground({
+      color: backgroundColor,
+      lightStatusBars: !dark,
+    });
+  } catch {
+    console.warn("[Native UI] NativeUi.setSystemBarsBackground failed");
+  }
 
   try {
     await StatusBar.show();
@@ -35,7 +55,7 @@ export async function syncStatusBar(themeMode: ThemeMode): Promise<void> {
   // Legacy Android fallback only. Android 15+ edge-to-edge relies on the
   // WebView background plus the CSS safe-area spacer.
   try {
-    await StatusBar.setBackgroundColor({ color: dark ? "#0a0a14" : "#f8fafc" });
+    await StatusBar.setBackgroundColor({ color: backgroundColor });
   } catch {
     console.warn("[Native UI] StatusBar.setBackgroundColor failed");
   }

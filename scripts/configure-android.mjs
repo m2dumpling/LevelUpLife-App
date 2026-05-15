@@ -150,10 +150,52 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(NativeUiPlugin.class);
         super.onCreate(savedInstanceState);
         WindowCompat.enableEdgeToEdge(getWindow());
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
+    }
+}
+`);
+
+  ensureFile(path.join(javaDir, "NativeUiPlugin.java"), `package com.leveluplife.app;
+
+import android.graphics.Color;
+import android.view.Window;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+@CapacitorPlugin(name = "NativeUi")
+public class NativeUiPlugin extends Plugin {
+    @PluginMethod
+    public void setSystemBarsBackground(PluginCall call) {
+        String color = call.getString("color", "#f3f7ff");
+        boolean lightStatusBars = Boolean.TRUE.equals(call.getBoolean("lightStatusBars", false));
+
+        try {
+            int parsedColor = Color.parseColor(color);
+            getActivity().runOnUiThread(() -> {
+                Window window = getActivity().getWindow();
+                window.getDecorView().setBackgroundColor(parsedColor);
+                window.setStatusBarColor(Color.TRANSPARENT);
+                window.setNavigationBarColor(Color.TRANSPARENT);
+                WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, window.getDecorView());
+                controller.setAppearanceLightStatusBars(lightStatusBars);
+                controller.setAppearanceLightNavigationBars(lightStatusBars);
+
+                JSObject result = new JSObject();
+                result.put("color", color);
+                call.resolve(result);
+            });
+        } catch (IllegalArgumentException error) {
+            call.reject("Invalid system bar background color", error);
+        }
     }
 }
 `);
