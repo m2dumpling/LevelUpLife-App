@@ -43,7 +43,9 @@ export async function syncStatusBar(themeMode: ThemeMode): Promise<void> {
   try {
     const info = await StatusBar.getInfo();
     if (info.height && info.height > 0) {
+      const safeTop = Math.max(0, Math.min(info.height, 36));
       document.documentElement.style.setProperty("--app-safe-top", `${info.height}px`);
+      document.documentElement.style.setProperty("--app-native-safe-top", `${safeTop}px`);
     }
   } catch {
     console.warn("[Native UI] StatusBar.getInfo failed");
