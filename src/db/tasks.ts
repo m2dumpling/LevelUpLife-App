@@ -30,6 +30,7 @@ export interface Task {
   createdAt: string;
   newGold?: number;
   rewardReverted?: boolean;
+  completedNow?: boolean;
 }
 
 function rowToTask(r: Record<string, unknown>): Task {
@@ -229,9 +230,11 @@ export const tasksDB = {
     if (data.description !== undefined) { sets.push("description = ?"); params.push(data.description); }
     if (data.difficulty !== undefined) {
       sets.push("difficulty = ?"); params.push(data.difficulty);
-      const rewards = fillTaskRewards({ difficulty: data.difficulty as string });
-      sets.push("xp_reward = ?"); params.push(rewards.xpReward);
-      sets.push("gold_reward = ?"); params.push(rewards.goldReward);
+      if (!existing.completed) {
+        const rewards = fillTaskRewards({ difficulty: data.difficulty as string });
+        sets.push("xp_reward = ?"); params.push(rewards.xpReward);
+        sets.push("gold_reward = ?"); params.push(rewards.goldReward);
+      }
     }
     if (data.frequency !== undefined) { sets.push("frequency = ?"); params.push(data.frequency); }
     if (data.timeOfDay !== undefined) { sets.push("time_of_day = ?"); params.push(data.timeOfDay); }
@@ -261,7 +264,7 @@ export const tasksDB = {
 
     if (task.mode === "habit") {
       const existing = await queryOne(`SELECT id FROM habit_log WHERE task_id = ? AND completed_at = ?`, [taskId, today]);
-      if (existing) return task;
+      if (existing) return { ...task, completedNow: false };
 
       await execute(`INSERT INTO habit_log (task_id, completed_at) VALUES (?, ?)`, [taskId, today]);
 
@@ -275,10 +278,12 @@ export const tasksDB = {
       task.completed = true;
       task.streakCount = newStreak;
       task.bestStreak = newBest;
+      task.completedNow = true;
       return task;
     }
 
     if (task.mode === "plan") {
+      if (task.completed || task.status === "completed") return { ...task, completedNow: false };
       if (task.targetDate && task.targetDate !== today) return null;
 
       const now = new Date().toISOString();
@@ -286,6 +291,7 @@ export const tasksDB = {
       task.completed = true;
       task.completedAt = now;
       task.status = "completed";
+      task.completedNow = true;
       return task;
     }
 

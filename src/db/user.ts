@@ -135,19 +135,21 @@ export const userDB = {
     });
 
     const hpLost = Math.min(missed.length * 5, user.hp);
-    const newHp = user.hp - hpLost;
-    const penaltyActive = newHp <= 0;
+    let currentHp = user.hp - hpLost;
+    const penaltyActive = currentHp <= 0;
 
     if (hpLost > 0) {
-      await this.update({ hp: newHp, hpPenaltyActive: penaltyActive, lastSettlementDate: yesterday });
+      await this.update({ hp: currentHp, hpPenaltyActive: penaltyActive, lastSettlementDate: yesterday });
     } else {
       await this.update({ lastSettlementDate: yesterday });
     }
 
     // Login recovery
     if (user.lastLoginDate && user.lastLoginDate !== getTodayLocal()) {
-      await this.update({ hp: Math.min(user.maxHp, user.hp + 20), lastLoginDate: getTodayLocal(), totalDays: user.totalDays + 1 });
+      currentHp = Math.min(user.maxHp, currentHp + 20);
+      await this.update({ hp: currentHp, lastLoginDate: getTodayLocal(), totalDays: user.totalDays + 1 });
     }
+    await import("./progression.ts").then((module) => module.evaluateProgression()).catch(() => []);
 
     return { hpLost, penaltyApplied: penaltyActive };
   },

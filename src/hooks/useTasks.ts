@@ -4,10 +4,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { tasksDB, type Task } from "../db/tasks";
-import { userDB } from "../db/user";
 import { seedIfNeeded } from "../db/seed";
 import { cancelTaskNotification, scheduleNotificationsQueued } from "../notifications";
 import { addLog } from "../db/logs";
+import { grantTaskReward, revertTaskReward } from "../db/rewards";
 import { getTodayLocal } from "../lib/date-utils";
 
 export type { Task };
@@ -59,9 +59,13 @@ export function useTasks() {
     const task = await tasksDB.complete(taskId);
     if (task) {
       await cancelTaskNotification(task);
-      const user = await userDB.get();
-      if (user) {
-        const result = await userDB.applyReward(user, task.xpReward, task.goldReward);
+      if (task.completedNow !== false) {
+        const result = await grantTaskReward(task);
+        if (!result.awarded) {
+          setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...task } : t)));
+          await scheduleNotificationsQueued("completeTask");
+          return task;
+        }
         await addLog({
           taskId: task.id,
           taskTitle: task.title,
@@ -91,12 +95,11 @@ export function useTasks() {
   const uncompleteTask = useCallback(async (taskId: number) => {
     const task = await tasksDB.uncomplete(taskId);
     if (task) {
-      const user = await userDB.get();
-      if (user && task.rewardReverted) {
-        const newXp = Math.max(0, user.xp - task.xpReward);
-        const newGold = Math.max(0, user.gold - task.goldReward);
-        await userDB.update({ xp: newXp, gold: newGold });
-        const updatedTask = { ...task, newGold, newXp };
+      if (task.rewardReverted) {
+        const reverted = await revertTaskReward(task);
+        const updatedTask = reverted
+          ? { ...task, newGold: reverted.gold, newXp: reverted.xp, newLevel: reverted.level, newXpToNext: reverted.xpToNext }
+          : task;
         setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updatedTask } : t)));
         await scheduleNotificationsQueued("uncompleteTask");
         return updatedTask;
@@ -120,6 +123,7 @@ export function useTasks() {
   const deleteTask = useCallback(async (taskId: number) => {
     const previousTask = tasks.find((t) => t.id === taskId);
     if (previousTask) await cancelTaskNotification(previousTask);
+    if (previousTask?.completed) await revertTaskReward(previousTask);
     await tasksDB.remove(taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     await scheduleNotificationsQueued("deleteTask");
