@@ -81,35 +81,35 @@ export async function queryOne<T = Record<string, unknown>>(sql: string, _params
   if (!table) return null;
 
   // 提取 WHERE id = ?
-  const idMatch = sql.match(/id\s*=\s*\?/i);
+  const idMatch = sql.match(/\bid\s*=\s*\?/i);
   const rows = loadTable(table);
 
-  if (idMatch) {
-    const idVal = _params[0];
-    return (rows.find((r) => r.id === idVal) as T) || null;
-  }
-
   // task_id match for habit_log
-  const tidMatch = sql.match(/task_id\s*=\s*\?/i);
+  const tidMatch = sql.match(/\btask_id\s*=\s*\?/i);
   if (tidMatch) {
     const tid = _params[0];
-    const filtered = rows.filter((r) => r["task_id"] === tid);
-    if (sql.toLowerCase().includes("completed_at")) {
+    const filtered = rows.filter((r) => r["task_id"] === tid || String(r["task_id"]) === String(tid));
+    if (/\bcompleted_at\s*=\s*\?/i.test(sql)) {
       const date = _params[1];
-      return (filtered.find((r) => r["completed_at"] === date) as T) || null;
+      return (filtered.find((r) => r["completed_at"] === date || String(r["completed_at"]) === String(date)) as T) || null;
     }
     return (filtered[0] as T) || null;
   }
 
+  if (idMatch) {
+    const idVal = _params[0];
+    return (rows.find((r) => r.id === idVal || String(r.id) === String(idVal)) as T) || null;
+  }
+
   // item_key match for inventory
-  const ikMatch = sql.match(/item_key\s*=\s*\?/i);
+  const ikMatch = sql.match(/\bitem_key\s*=\s*\?/i);
   if (ikMatch) {
     const ik = _params[0];
     return (rows.find((r) => r["item_key"] === ik) as T) || null;
   }
 
   // key match for achievement
-  const keyMatch = sql.match(/key\s*=\s*\?/i);
+  const keyMatch = sql.match(/\bkey\s*=\s*\?/i);
   if (keyMatch) {
     const k = _params[0];
     return (rows.find((r) => r["key"] === k) as T) || null;
