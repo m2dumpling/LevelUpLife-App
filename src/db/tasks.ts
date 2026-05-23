@@ -63,6 +63,15 @@ function isTruthyDbValue(value: unknown): boolean {
   return value === true || value === 1 || value === "1";
 }
 
+function getCompletionDate(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 10) return null;
+  return value.slice(0, 10);
+}
+
+function isHabitCompletedToday(task: Task, today: string): boolean {
+  return task.completed && getCompletionDate(task.completedAt) === today;
+}
+
 function isDevEnv(): boolean {
   return Boolean((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV);
 }
@@ -120,7 +129,7 @@ export const tasksDB = {
     const tasks = rows.map((r) => {
       const task = rowToTask(r);
       if (task.mode === "habit") {
-        task.completed = todayCompletedIds.has(task.id);
+        task.completed = todayCompletedIds.has(task.id) || isHabitCompletedToday(task, today);
       }
       return task;
     });
@@ -215,7 +224,7 @@ export const tasksDB = {
     if (task.mode === "habit") {
       const today = getTodayLocal();
       const log = await queryOne(`SELECT id FROM habit_log WHERE task_id = ? AND completed_at = ?`, [id, today]);
-      task.completed = !!log;
+      task.completed = !!log || isHabitCompletedToday(task, today);
     }
     return task;
   },
@@ -267,15 +276,17 @@ export const tasksDB = {
       if (existing) return { ...task, completedNow: false };
 
       await execute(`INSERT INTO habit_log (task_id, completed_at) VALUES (?, ?)`, [taskId, today]);
+      const now = new Date().toISOString();
 
       const yesterday = getYesterdayLocal();
       const yesterdayLog = await queryOne(`SELECT id FROM habit_log WHERE task_id = ? AND completed_at = ?`, [taskId, yesterday]);
       const newStreak = yesterdayLog ? task.streakCount + 1 : 1;
       const newBest = Math.max(newStreak, task.bestStreak);
 
-      await execute(`UPDATE task SET streak_count = ?, best_streak = ? WHERE id = ?`, [newStreak, newBest, taskId]);
+      await execute(`UPDATE task SET completed = 1, completed_at = ?, streak_count = ?, best_streak = ? WHERE id = ?`, [now, newStreak, newBest, taskId]);
 
       task.completed = true;
+      task.completedAt = now;
       task.streakCount = newStreak;
       task.bestStreak = newBest;
       task.completedNow = true;
@@ -312,8 +323,9 @@ export const tasksDB = {
       const dates = new Set(allLogs.map((l) => l.completed_at));
       let streak = 0;
       while (dates.has(getDaysAgoLocal(streak + 1))) streak++;
-      await execute(`UPDATE task SET streak_count = ? WHERE id = ?`, [streak, taskId]);
+      await execute(`UPDATE task SET completed = 0, completed_at = NULL, streak_count = ? WHERE id = ?`, [streak, taskId]);
       task.completed = false;
+      task.completedAt = null;
       task.streakCount = streak;
       task.rewardReverted = rewardReverted;
       return task;
