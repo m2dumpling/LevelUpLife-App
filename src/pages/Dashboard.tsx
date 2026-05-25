@@ -264,6 +264,7 @@ export function Dashboard() {
             <button onClick={() => setBackpackOpen(true)} className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-card hover:border-primary/40 transition-colors">
               <Package className="w-3.5 h-3.5" />背包
             </button>
+            <MonthlyView habits={habits} plans={plans} />
             <div className="ml-auto inline-flex rounded-md border border-border bg-card/70 p-0.5 sm:ml-0">
               {themeOptions.map(({ value, label, Icon }) => (
                 <button
@@ -285,15 +286,13 @@ export function Dashboard() {
       </header>
 
       <main className="app-main max-w-4xl mx-auto space-y-4">
-        {/* Action buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <MonthlyView habits={habits} plans={plans} />
-          {import.meta.env.DEV && (
+        {import.meta.env.DEV && (
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => void scheduleTestNotificationIn(10)}>
               10s test notification
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {exactAlarmNeeded && (
           <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
