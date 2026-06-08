@@ -23,7 +23,7 @@ export function Timeline() {
   }, []);
 
   useEffect(() => {
-    fetchLogs();
+    void Promise.resolve().then(fetchLogs);
   }, [fetchLogs]);
 
   // 监听自定义事件刷新

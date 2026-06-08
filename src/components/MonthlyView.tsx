@@ -1,11 +1,11 @@
 import { CalendarDays, Clock, Flame, Target } from "lucide-react";
 import type { Task } from "../db/tasks";
 import {
-  getDayOfMonth,
   getDayOfWeek,
   getDaysFromTodayLocal,
   getTodayLocal,
 } from "../lib/date-utils";
+import { habitMatchesDate } from "../lib/habit-schedule";
 import {
   Dialog,
   DialogContent,
@@ -27,20 +27,10 @@ function formatDateLabel(dateStr: string): string {
   return `${Number(dateStr.slice(5, 7))}月${Number(dateStr.slice(8, 10))}日 ${DAY_NAMES[getDayOfWeek(dateStr)]}`;
 }
 
-function habitMatchesDate(habit: Task, dateStr: string, today: string): boolean {
+function taskMatchesDate(habit: Task, dateStr: string): boolean {
   if (habit.startDate && habit.startDate > dateStr) return false;
   if (habit.endDate && habit.endDate < dateStr) return false;
-
-  const frequency = habit.frequency || "daily";
-  if (frequency === "daily") return true;
-  if (frequency === "weekly") {
-    if (!habit.frequencyDays) return getDayOfWeek(dateStr) === getDayOfWeek(today);
-    return habit.frequencyDays.split(",").map(Number).includes(getDayOfWeek(dateStr));
-  }
-  if (frequency === "monthly") {
-    return getDayOfMonth(dateStr) === getDayOfMonth(today);
-  }
-  return true;
+  return habitMatchesDate(habit.frequency, dateStr, habit.frequencyDays);
 }
 
 export function MonthlyView({ habits, plans }: MonthlyViewProps) {
@@ -50,7 +40,7 @@ export function MonthlyView({ habits, plans }: MonthlyViewProps) {
     const items: Array<{ task: Task; type: "habit" | "plan" }> = [];
 
     for (const habit of habits) {
-      if (habitMatchesDate(habit, dateStr, today)) {
+      if (taskMatchesDate(habit, dateStr)) {
         items.push({ task: habit, type: "habit" });
       }
     }

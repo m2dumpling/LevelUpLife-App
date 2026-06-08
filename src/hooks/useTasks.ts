@@ -29,7 +29,7 @@ export function useTasks() {
   }, []);
 
   useEffect(() => {
-    fetchTasks();
+    void Promise.resolve().then(fetchTasks);
   }, [fetchTasks]);
 
   const addTask = useCallback(

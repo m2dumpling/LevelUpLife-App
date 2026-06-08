@@ -1,37 +1,16 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-interface FloatingNumber {
-  id: number;
-  x: number;
-  y: number;
-  text: string;
-  color: string;
-}
-
-let nextId = 0;
-
-/** 在指定位置触发一个浮动数值 */
-export function spawnFloatingNumber(
-  x: number,
-  y: number,
-  text: string,
-  color: string
-): number {
-  const id = ++nextId;
-  const event = new CustomEvent("floating-number", {
-    detail: { id, x, y, text, color },
-  });
-  window.dispatchEvent(event);
-  return id;
-}
+import {
+  FLOATING_NUMBER_EVENT,
+  type FloatingNumberDetail,
+} from "../lib/floating-number";
 
 export function FloatingNumberContainer() {
-  const [numbers, setNumbers] = useState<FloatingNumber[]>([]);
+  const [numbers, setNumbers] = useState<FloatingNumberDetail[]>([]);
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const { id, x, y, text, color } = (e as CustomEvent).detail;
+      const { id, x, y, text, color } = (e as CustomEvent<FloatingNumberDetail>).detail;
       setNumbers((prev) => [...prev, { id, x, y, text, color }]);
 
       // 1.5 秒后自动移除
@@ -40,8 +19,8 @@ export function FloatingNumberContainer() {
       }, 1500);
     };
 
-    window.addEventListener("floating-number", handler);
-    return () => window.removeEventListener("floating-number", handler);
+    window.addEventListener(FLOATING_NUMBER_EVENT, handler);
+    return () => window.removeEventListener(FLOATING_NUMBER_EVENT, handler);
   }, []);
 
   return (

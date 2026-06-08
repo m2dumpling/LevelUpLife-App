@@ -57,7 +57,8 @@ const {
   getNotificationIdByTask,
   TASK_REMINDER_CHANNEL_ID,
 } = await import("../src/notifications.ts");
-const { getDaysFromTodayLocal, getTodayLocal } = await import("../src/lib/date-utils.ts");
+const { getDaysFromTodayLocal, getTodayLocal, getYesterdayLocal } = await import("../src/lib/date-utils.ts");
+const { habitMatchesDate } = await import("../src/lib/habit-schedule.ts");
 const { execute, queryAll, queryOne, saveTable } = connection;
 
 function resetTables(gold = 20): void {
@@ -231,6 +232,28 @@ function taskFixture(overrides: Partial<Awaited<ReturnType<typeof tasksDB.create
   resetTables(20);
   saveTable("task", [
     {
+      id: 0,
+      mode: "plan",
+      title: "Overdue reminder",
+      description: null,
+      difficulty: "easy",
+      xp_reward: 10,
+      gold_reward: 3,
+      frequency: "daily",
+      time_of_day: "anytime",
+      frequency_days: null,
+      reminder_time: "08:00",
+      streak_count: 0,
+      best_streak: 0,
+      target_date: getDaysFromTodayLocal(-1),
+      start_date: null,
+      end_date: null,
+      status: "pending",
+      completed: 0,
+      sort_order: 0,
+      created_at: "now",
+    },
+    {
       id: 1,
       mode: "plan",
       title: "Today reminder",
@@ -260,7 +283,9 @@ function taskFixture(overrides: Partial<Awaited<ReturnType<typeof tasksDB.create
   );
 
   const rows = await queryAll<{ status: string }>("SELECT * FROM task");
-  assert.equal(rows[0].status, "pending");
+  const byId = new Map(rows.map((row: { id?: number; status: string }) => [row.id, row.status]));
+  assert.equal(byId.get(0), "failed");
+  assert.equal(byId.get(1), "pending");
 }
 
 {
@@ -560,7 +585,7 @@ function taskFixture(overrides: Partial<Awaited<ReturnType<typeof tasksDB.create
     hp: 50,
     maxHp: 100,
     lastLoginDate: getDaysFromTodayLocal(-2),
-    lastSettlementDate: null,
+    lastSettlementDate: getDaysFromTodayLocal(-2),
   });
   await tasksDB.create({
     title: "Daily missed",
@@ -573,6 +598,72 @@ function taskFixture(overrides: Partial<Awaited<ReturnType<typeof tasksDB.create
   const settled = await userDB.get();
   assert.equal(user?.hp, 100);
   assert.equal(settled?.hp, 65);
+}
+
+{
+  resetTables(20);
+  await userDB.update({
+    hp: 50,
+    maxHp: 100,
+    lastLoginDate: null,
+    lastSettlementDate: getDaysFromTodayLocal(-2),
+  });
+
+  await userDB.dailySettle();
+  const settled = await userDB.get();
+  assert.equal(settled?.hp, 70);
+  assert.equal(settled?.lastLoginDate, getTodayLocal());
+}
+
+{
+  resetTables(20);
+  await userDB.update({
+    hp: 50,
+    maxHp: 100,
+    lastLoginDate: getDaysFromTodayLocal(-2),
+    lastSettlementDate: null,
+  });
+  await tasksDB.create({
+    title: "Do not back-penalize first local settlement",
+    mode: "habit",
+    frequency: "daily",
+    startDate: getDaysFromTodayLocal(-3),
+  });
+
+  await userDB.dailySettle();
+  const settled = await userDB.get();
+  assert.equal(settled?.hp, 70);
+  assert.equal(settled?.lastSettlementDate, getYesterdayLocal());
+}
+
+{
+  resetTables(20);
+  await userDB.update({
+    hp: 50,
+    maxHp: 100,
+    lastLoginDate: getTodayLocal(),
+    lastSettlementDate: getDaysFromTodayLocal(-2),
+  });
+  await tasksDB.create({
+    title: "Weekly default due",
+    mode: "habit",
+    frequency: "weekly",
+    startDate: getDaysFromTodayLocal(-3),
+  });
+  await tasksDB.create({
+    title: "Monthly default due",
+    mode: "habit",
+    frequency: "monthly",
+    startDate: getDaysFromTodayLocal(-3),
+  });
+
+  await userDB.dailySettle();
+  const settled = await userDB.get();
+  assert.equal(settled?.hp, 40);
+  assert.equal(habitMatchesDate("weekly", getTodayLocal(), null), true);
+  assert.equal(habitMatchesDate("monthly", getTodayLocal(), null), true);
+  assert.equal(habitMatchesDate("monthly", "2026-06-08", "9"), false);
+  assert.equal(habitMatchesDate("monthly", "2026-06-09", "9"), true);
 }
 
 {

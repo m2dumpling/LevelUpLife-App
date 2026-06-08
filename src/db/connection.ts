@@ -28,27 +28,63 @@ function saveTable(name: string, rows: Record<string, unknown>[]): void {
   }
 }
 
+function normalizeComparable(value: unknown): string | number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return value;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  const text = String(value);
+  if (/^-?\d+(?:\.\d+)?$/.test(text)) return Number(text);
+  return text;
+}
+
+function parseWhereValue(raw: string, params: unknown[], index: { value: number }): unknown {
+  const value = raw.trim();
+  if (value === "?") return params[index.value++];
+  if (/^NULL$/i.test(value)) return null;
+  const quoted = value.match(/^['"]([^'"]*)['"]$/);
+  if (quoted) return quoted[1];
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+  return value;
+}
+
+function matchesCondition(row: Record<string, unknown>, condition: string, expected: unknown): boolean {
+  const match = condition.trim().match(/^(\w+)\s*(=|!=|<>|<=|>=|<|>)\s*(.+)$/);
+  if (!match) return false;
+  const [, column, operator] = match;
+  const left = normalizeComparable(row[column]);
+  const right = normalizeComparable(expected);
+
+  if (operator === "=") return left === right || String(left) === String(right);
+  if (operator === "!=" || operator === "<>") return !(left === right || String(left) === String(right));
+  if (left === null || right === null) return false;
+
+  if (operator === "<") return left < right;
+  if (operator === ">") return left > right;
+  if (operator === "<=") return left <= right;
+  if (operator === ">=") return left >= right;
+  return false;
+}
+
+function matchesWhere(row: Record<string, unknown>, whereClause: string, params: unknown[]): boolean {
+  const index = { value: 0 };
+  const conditions = whereClause.split(/\s+AND\s+/i);
+  return conditions.every((condition) => {
+    const valuePart = condition.match(/^(\w+)\s*(=|!=|<>|<=|>=|<|>)\s*(.+)$/)?.[3];
+    if (valuePart === undefined) return false;
+    return matchesCondition(row, condition, parseWhereValue(valuePart, params, index));
+  });
+}
+
 /** 查询所有行 */
 export async function queryAll<T = Record<string, unknown>>(sql: string, _params?: unknown[]): Promise<T[]> {
   const table = sql.match(/FROM\s+(\w+)/i)?.[1];
   if (!table) return [];
   let rows = loadTable(table);
-  const params = [...(_params ?? [])];
 
   // WHERE 过滤
   const whereClause = sql.match(/WHERE\s+(.+?)(?:\s+ORDER|\s+LIMIT|\s*$)/i)?.[1];
-  if (whereClause && params.length > 0) {
-    const conditions = whereClause.split(/\s+AND\s+/i);
-    for (const cond of conditions) {
-      const eqMatch = cond.match(/(\w+)\s*=\s*\?/);
-      if (eqMatch) {
-        const col = eqMatch[1];
-        const val = params.shift();
-        if (val !== undefined) {
-          rows = rows.filter((r) => r[col] === val || String(r[col]) === String(val));
-        }
-      }
-    }
+  if (whereClause) {
+    rows = rows.filter((row) => matchesWhere(row, whereClause, _params ?? []));
   }
 
   // ORDER BY
@@ -163,21 +199,7 @@ export async function execute(sql: string, _params: unknown[] = []): Promise<voi
     if (!hasWhere) {
       targets.push(...rows);
     } else {
-      const simpleParamWhere = whereClause.match(/^(id|task_id|item_key|key|completed_at)\s*=\s*\?$/i);
-      const simpleLiteralWhere = whereClause.match(/^(id|task_id)\s*=\s*(-?\d+)$/i);
-
-      if (simpleParamWhere) {
-        const col = simpleParamWhere[1];
-        const value = _params[setParamCount];
-        targets.push(...rows.filter((r) => r[col] === value || String(r[col]) === String(value)));
-      } else if (simpleLiteralWhere) {
-        const col = simpleLiteralWhere[1];
-        const value = Number(simpleLiteralWhere[2]);
-        targets.push(...rows.filter((r) => r[col] === value));
-      } else {
-        console.warn("[DB] Unsupported UPDATE WHERE, skipped:", sql);
-        return;
-      }
+      targets.push(...rows.filter((row) => matchesWhere(row, whereClause, _params.slice(setParamCount))));
     }
 
     for (const target of targets) {

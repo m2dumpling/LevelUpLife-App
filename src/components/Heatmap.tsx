@@ -156,9 +156,12 @@ export function Heatmap() {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; date: string; xp: number } | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = formatLocalDate(today);
+  const today = useMemo(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
+  const todayStr = useMemo(() => formatLocalDate(today), [today]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -173,7 +176,9 @@ export function Heatmap() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    void Promise.resolve().then(fetchData);
+  }, [fetchData]);
 
   useEffect(() => {
     const handler = () => fetchData();

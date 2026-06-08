@@ -1,11 +1,7 @@
 import { queryOne, queryAll, execute, insert } from "./connection.ts";
 import { applyRewards } from "../lib/xp-calculator.ts";
-import {
-  getDayOfMonth,
-  getDayOfWeek,
-  getTodayLocal,
-  getYesterdayLocal,
-} from "../lib/date-utils.ts";
+import { getTodayLocal, getYesterdayLocal } from "../lib/date-utils.ts";
+import { habitMatchesDate } from "../lib/habit-schedule.ts";
 import { tasksDB } from "./tasks.ts";
 
 export interface User {
@@ -103,8 +99,27 @@ export const userDB = {
     const user = await this.get();
     if (!user) return { hpLost: 0, penaltyApplied: false };
 
+    const today = getTodayLocal();
     const yesterday = getYesterdayLocal();
-    if (user.lastSettlementDate === yesterday) return { hpLost: 0, penaltyApplied: false };
+    let currentHp = user.hp;
+
+    if (user.lastLoginDate !== today) {
+      currentHp = Math.min(user.maxHp, currentHp + 20);
+      await this.update({
+        hp: currentHp,
+        hpPenaltyActive: currentHp <= 0,
+        lastLoginDate: today,
+        totalDays: user.totalDays + 1,
+      });
+    }
+
+    if (!user.lastSettlementDate || user.lastSettlementDate >= yesterday) {
+      if (!user.lastSettlementDate) {
+        await this.update({ lastSettlementDate: yesterday });
+      }
+      await import("./progression.ts").then((module) => module.evaluateProgression()).catch(() => []);
+      return { hpLost: 0, penaltyApplied: false };
+    }
 
     // 查昨天该做但没做的 habit
     const allTasks = await tasksDB.getAll();
@@ -117,37 +132,18 @@ export const userDB = {
     const missed = habits.filter((h) => {
       if (h.endDate && h.endDate < yesterday) return false;
       if (h.startDate && h.startDate > yesterday) return false;
-      // frequency 匹配
-      if (h.frequency === "weekly") {
-        const dow = getDayOfWeek(yesterday);
-        if (h.frequencyDays) {
-          if (!h.frequencyDays.split(",").map(Number).includes(dow)) return false;
-        } else {
-          // 向后兼容：与今天同 weekday
-          if (dow !== getDayOfWeek(getTodayLocal())) return false;
-        }
-      }
-      if (h.frequency === "monthly") {
-        const dom = getDayOfMonth(yesterday);
-        if (dom !== getDayOfMonth(getTodayLocal())) return false;
-      }
+      if (!habitMatchesDate(h.frequency, yesterday, h.frequencyDays)) return false;
       return !doneIds.has(h.id);
     });
 
-    const hpLost = Math.min(missed.length * 5, user.hp);
-    let currentHp = user.hp - hpLost;
+    const hpLost = Math.min(missed.length * 5, currentHp);
+    currentHp -= hpLost;
     const penaltyActive = currentHp <= 0;
 
     if (hpLost > 0) {
       await this.update({ hp: currentHp, hpPenaltyActive: penaltyActive, lastSettlementDate: yesterday });
     } else {
       await this.update({ lastSettlementDate: yesterday });
-    }
-
-    // Login recovery
-    if (user.lastLoginDate && user.lastLoginDate !== getTodayLocal()) {
-      currentHp = Math.min(user.maxHp, currentHp + 20);
-      await this.update({ hp: currentHp, lastLoginDate: getTodayLocal(), totalDays: user.totalDays + 1 });
     }
     await import("./progression.ts").then((module) => module.evaluateProgression()).catch(() => []);
 
