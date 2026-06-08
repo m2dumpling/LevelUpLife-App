@@ -22,31 +22,39 @@ export function StoryDialog({ event, onClose }: StoryDialogProps) {
 
   // 打字机效果
   useEffect(() => {
-    if (!event) {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
+
+    const timeout = setTimeout(() => {
+      if (cancelled) return;
       setDisplayText("");
       setShowFullText(false);
-      return;
-    }
 
-    setDisplayText("");
-    setShowFullText(false);
+      if (!event) return;
 
-    const lines = event.dialogue.split("\n");
-    let currentCharIndex = 0;
-    const fullText = lines.join("\n");
-    const chars = [...fullText];
+      const lines = event.dialogue.split("\n");
+      let currentCharIndex = 0;
+      const fullText = lines.join("\n");
+      const chars = [...fullText];
 
-    const interval = setInterval(() => {
-      currentCharIndex++;
-      setDisplayText(chars.slice(0, currentCharIndex).join(""));
+      interval = setInterval(() => {
+        currentCharIndex++;
+        setDisplayText(chars.slice(0, currentCharIndex).join(""));
 
-      if (currentCharIndex >= chars.length) {
+        if (currentCharIndex >= chars.length) {
+          if (interval) clearInterval(interval);
+          setShowFullText(true);
+        }
+      }, 40);
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      if (interval) {
         clearInterval(interval);
-        setShowFullText(true);
       }
-    }, 40);
-
-    return () => clearInterval(interval);
+    };
   }, [event]);
 
   if (!event) return null;

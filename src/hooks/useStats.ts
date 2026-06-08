@@ -26,7 +26,9 @@ export function useStats() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    void Promise.resolve().then(fetch);
+  }, [fetch]);
 
   return { stats, loading, refreshStats: fetch };
 }

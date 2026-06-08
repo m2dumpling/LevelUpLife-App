@@ -1,27 +1,22 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star } from "lucide-react";
-
-interface Achievement {
-  title: string;
-  description: string;
-  icon: string;
-}
-
-let showAchievement: (achievement: Achievement) => void;
-
-/** 全局触发成就弹出 */
-export function triggerAchievementPopup(achievement: Achievement) {
-  if (showAchievement) showAchievement(achievement);
-}
+import {
+  ACHIEVEMENT_POPUP_EVENT,
+  type AchievementPopupDetail,
+} from "../lib/achievement-popup";
 
 export function AchievementPopup() {
-  const [achievement, setAchievement] = useState<Achievement | null>(null);
+  const [achievement, setAchievement] = useState<AchievementPopupDetail | null>(null);
   const [visible, setVisible] = useState(false);
 
-  showAchievement = useCallback((ach: Achievement) => {
-    setAchievement(ach);
-    setVisible(true);
+  useEffect(() => {
+    const handler = (event: Event) => {
+      setAchievement((event as CustomEvent<AchievementPopupDetail>).detail);
+      setVisible(true);
+    };
+    window.addEventListener(ACHIEVEMENT_POPUP_EVENT, handler);
+    return () => window.removeEventListener(ACHIEVEMENT_POPUP_EVENT, handler);
   }, []);
 
   useEffect(() => {
